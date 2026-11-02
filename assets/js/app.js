@@ -62,7 +62,8 @@
     cFull: $("#cFull")
   };
 
-  const state = { view: "cats", cat: 0, query: "" };
+  /* cFocus / vFocus 记的是「全部牌里的序号」（dataset.idx），不是页内下标 */
+  const state = { view: "cats", cat: 0, query: "", cFocus: -1, vFocus: -1 };
 
   /* ── 小工具 ─────────────────────────────── */
   const pad = (n) => (n < 10 ? "0" + n : "" + n);
@@ -117,6 +118,7 @@
     const nextBtn = o.nextBtn || null;
     const unit = o.unit || "张";
     const onPick = o.onPick || function () {};
+    const onChange = o.onChange || null;
 
     let all = [];                        // 全部牌
     let shown = [];                      // 当前这一把
@@ -263,12 +265,16 @@
       if (nextBtn) nextBtn.hidden = !multi;
     }
 
-    function renderPage() {
+    function renderPage(keepIdx) {
       const start = page * per;
       shown = all.slice(start, start + per);
-      all.forEach((c) => { c.hidden = true; });
+      /* 翻页时顺手擦掉上一屏残留的选中样式，免得 hidden 的旧卡还挂着 is-focus */
+      all.forEach((c) => { c.hidden = true; c.classList.remove("is-focus", "badge-end"); });
       shown.forEach((c) => { c.hidden = false; });
-      focus = shown.length ? Math.floor((shown.length - 1) / 2) : -1;
+      /* 默认停在这一屏中间那张；给了 keepIdx 就尽量停在原来那张
+         （屏幕尺寸变化 / ResizeObserver 回灌时不能把用户的选中态冲掉） */
+      const keep = typeof keepIdx === "number" && keepIdx >= 0 ? keepIdx - start : -1;
+      focus = keep >= 0 && keep < shown.length ? keep : midFocus();
       measure();
 
       /* 首次/换页时先关掉过渡，让它直接出现在扇形位置上 */
@@ -278,12 +284,42 @@
       requestAnimationFrame(() => fanEl.classList.remove("no-anim"));
 
       paintCount();
+      notify();
+    }
+
+    function midFocus() {
+      return shown.length ? Math.floor((shown.length - 1) / 2) : -1;
+    }
+
+    /* 停在哪张 —— 换算成「全部牌」里的序号，-1 表示还没停 */
+    function globalFocus() {
+      const c = shown[focus];
+      return c ? Number(c.dataset.idx) : -1;
+    }
+
+    function notify() {
+      if (onChange) onChange(globalFocus());
     }
 
     function setFocus(i) {
       if (i < 0 || i >= shown.length || i === focus) return;
       focus = i;
       place();
+      notify();
+    }
+
+    /* 直接停到某一张（可能要先翻到它所在的页）—— 复原上次位置用 */
+    function selectIdx(gi) {
+      gi = Number(gi);
+      if (!(gi >= 0) || gi >= all.length) return false;
+      const p = Math.floor(gi / per);
+      if (p !== page) {
+        page = p;
+        renderPage(gi);
+      } else {
+        setFocus(gi - page * per);
+      }
+      return true;
     }
 
     function goPage(p) {
@@ -349,22 +385,23 @@
     if (prevBtn) prevBtn.addEventListener("click", () => goPage(page - 1));
     if (nextBtn) nextBtn.addEventListener("click", () => goPage(page + 1));
 
-    /* 尺寸变了重新摆 */
+    /* 尺寸变了重新摆（保持当前选中那张，别弹回中间） */
     let raf = 0;
     if (window.ResizeObserver) {
       new ResizeObserver(() => {
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(() => {
+          const cur = globalFocus();
           const p = perPage();
           if (p !== per) {
             per = p;
-            page = 0;
+            page = cur >= 0 ? Math.floor(cur / per) : 0;
           }
-          renderPage();
+          renderPage(cur);
         });
       }).observe(fanEl);
     } else {
-      window.addEventListener("resize", () => renderPage());
+      window.addEventListener("resize", () => renderPage(globalFocus()));
     }
 
     return {
@@ -375,8 +412,10 @@
         renderPage();
       },
       setFocus,
+      getFocus: globalFocus,
+      selectIdx,
       refocus() {
-        renderPage();
+        renderPage(globalFocus());
       }
     };
   }
@@ -388,7 +427,8 @@
     countEl: el.catCount,
     prevBtn: el.catPrev,
     nextBtn: el.catNext,
-    onPick: (idx) => enterCategory(idx)
+    onPick: (idx) => enterCategory(idx),
+    onChange: (gi) => { state.cFocus = gi; persist(); }
   });
 
   const videoFan = makeFan(el.videoFan, {
@@ -397,8 +437,42 @@
     countEl: el.videoCount,
     prevBtn: el.videoPrev,
     nextBtn: el.videoNext,
-    onPick: (idx) => openPlayer(state.cat, idx)
+    onPick: (idx) => openPlayer(state.cat, idx),
+    onChange: (gi) => { state.vFocus = gi; persist(); }
   });
+
+  /* ── 记住停在哪一张 ─────────────────────── */
+  /* 安卓 Chrome 在跳去网盘那一下会把本页整页回收，回来时是「重新加载」：
+     内存里的选中态全没了，只剩 URL 上的 #/目录名，所以只能回到该目录的默认中间那张。
+     iOS Safari 不丢页面，所以一直正常。
+     办法：把「哪个目录、停在第几集」写进 sessionStorage（同一标签页有效，关掉即清），
+     页面重载时照原样复原。iOS 上这段等于没跑，行为不变。 */
+  const SKEY = "bm.fan.v1";
+  const WKEY = "bm.welcomed";
+
+  function persist() {
+    try {
+      sessionStorage.setItem(
+        SKEY,
+        JSON.stringify({
+          view: state.view,
+          cat: state.cat,
+          cFocus: state.cFocus,
+          /* 在目录页时不记视频选中态：重新进目录应该回到该目录的默认那张 */
+          vFocus: state.view === "videos" ? state.vFocus : null
+        })
+      );
+    } catch (e) {}
+  }
+
+  function restore() {
+    try {
+      const s = JSON.parse(sessionStorage.getItem(SKEY) || "null");
+      return s && typeof s === "object" ? s : null;
+    } catch (e) {
+      return null;
+    }
+  }
 
   /* ── 渲染：目录 ─────────────────────────── */
   const esc = (s) =>
@@ -485,7 +559,7 @@
     document.body.classList.toggle("in-videos", name === "videos");
   }
 
-  function enterCategory(idx) {
+  function enterCategory(idx, focusIdx) {
     const cat = CATS[idx];
     if (!cat) return;
     state.cat = idx;
@@ -493,10 +567,13 @@
     document.body.style.setProperty("--accent", cat.accent || "#FF6B57");
     setView("videos");
     renderVideos(cat);
+    /* 复原上次停的那一集（没有就停在默认的中间那张） */
+    if (focusIdx != null && focusIdx >= 0) videoFan.selectIdx(focusIdx);
     el.videoFan.focus({ preventScroll: true });
     try {
       history.replaceState(null, "", "#/" + cat.id);
     } catch (err) {}
+    persist();
   }
 
   function backToCats() {
@@ -507,6 +584,7 @@
     try {
       history.replaceState(null, "", location.pathname + location.search);
     } catch (err) {}
+    persist();
   }
 
   /* ── 播放器 ─────────────────────────────── */
@@ -787,24 +865,54 @@
     }, 360);
   }
 
+  /* 同一标签页只打一次招呼：安卓那边从网盘回来会重载，不该再念一遍 */
+  function welcomeOnce() {
+    try {
+      if (sessionStorage.getItem(WKEY)) return;
+      sessionStorage.setItem(WKEY, "1");
+    } catch (err) {}
+    playWelcome();
+  }
+
   /* ── 启动 ───────────────────────────────── */
   (function init() {
     lockZoom();
+
+    /* 先取上次的位置 —— 必须在任何重新渲染把新状态写回之前读出来 */
+    const saved = restore();
+
     renderCats();
     setView("cats");
 
+    /* 目录卡的位置总是先复原 —— 之后就算直接进了某一集，
+       「返回上一级」时看到的还是当初点的那张目录卡 */
+    if (saved && saved.cFocus >= 0) catFan.selectIdx(saved.cFocus);
+
     /* 支持直链：#/animals 进目录，#/animals/3 直接播第 3 集 */
     const m = /^#\/?([\w-]+)(?:\/(\d+))?$/.exec(location.hash || "");
-    const direct = m ? CATS.findIndex((c) => c.id === m[1]) : -1;
-    if (direct >= 0) {
-      const idx = direct;
+    const hashIdx = m ? CATS.findIndex((c) => c.id === m[1]) : -1;
+
+    if (hashIdx >= 0) {
+      /* 有 hash：以 URL 里的目录为准（安卓从网盘回来重载走的就是这里），
+         同一个目录才复原上次停的那一集 */
+      const sameCat = saved && saved.cat === hashIdx;
+      /* 直链指向的是另一个目录：返回上一级时该看到这张，而不是上次那张 */
+      if (!sameCat) catFan.selectIdx(hashIdx);
       setTimeout(() => {
-        enterCategory(idx);
+        enterCategory(hashIdx, sameCat ? saved.vFocus : null);
       }, 60);
       return; /* 深链直接进了目录，这次不算「停在目录页」 */
     }
 
-    /* 真正停在目录页：打招呼 */
-    playWelcome();
+    if (saved && saved.view === "videos" && CATS[saved.cat]) {
+      /* 没 hash 但上次停在某一集：页面被回收后重载，照原样回去 */
+      setTimeout(() => {
+        enterCategory(saved.cat, saved.vFocus);
+      }, 60);
+      return;
+    }
+
+    /* 停在目录页：位置已在上头复原，这里只管打招呼 */
+    welcomeOnce();
   })();
 })();
