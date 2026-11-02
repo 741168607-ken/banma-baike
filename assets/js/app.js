@@ -52,7 +52,6 @@
     pStateLink: $("#pStateLink"),
     pSpinner: $("#pSpinner"),
     pBigPlay: $("#pBigPlay"),
-    pPoster: $("#pPoster"),
     stage: $("#pStage"),
     cPlay: $("#cPlay"),
     cTrack: $("#cTrack"),
@@ -513,7 +512,6 @@
   /* ── 播放器 ─────────────────────────────── */
   const v = el.video;
   let current = { cat: 0, vid: 0 };
-  let pendingLink = ""; /* 没有站内直链时，那个「去网盘」的地址 */
 
   /* 尽量让播放页铺满整个屏幕。iPhone 不支持元素全屏，但 overlay 本来就是 100vh，视觉上一样 */
   function requestFull(node) {
@@ -528,8 +526,8 @@
   function openNetdisk(url) {
     if (!url) return;
     const w = window.open(url, "_blank", "noopener");
-    if (w) toast("已打开百度网盘播放页 · 打不开就先登录网盘账号");
-    else toast("浏览器拦了新窗口，请允许弹出窗口再点一次");
+    if (w) toast("已打开百度网盘播放器 · 没登录会先请你登录");
+    else toast("浏览器拦了新窗口，允许弹出窗口后再点一次");
   }
 
   function showState(kind, title, text, link) {
@@ -554,6 +552,13 @@
     const vid = cat.videos[vidIdx];
     if (!vid) return;
 
+    /* 没有站内片源：直接跳到百度网盘播放页，中间不再有「点击播放」那一屏 */
+    if (!vid.src) {
+      if (vid.netdisk) openNetdisk(vid.netdisk);
+      else toast("这一集还没有片源");
+      return;
+    }
+
     current = { cat: catIdx, vid: vidIdx };
 
     el.pTitle.textContent = vid.title;
@@ -568,10 +573,9 @@
     }
 
     /* 进播放页就直接铺满屏幕（iPhone 不支持元素全屏，靠 overlay 本身占满视口） */
-    const src = vid.src || "";
+    const src = vid.src;
 
     el.player.classList.add("is-on");
-    el.player.classList.toggle("is-nosrc", !src);
     el.player.setAttribute("aria-hidden", "false");
     document.body.classList.add("locked");
     requestFull(el.player);
@@ -588,29 +592,7 @@
     /* 只有真实（横版）缩略图才当海报用，避免竖版封面被压成窄条 */
     if (vid.thumb) v.poster = pic(vid.thumb);
     else v.removeAttribute("poster");
-    if (poster && vid.thumb) {
-      el.pPoster.src = poster;
-      el.pPoster.removeAttribute("hidden");
-    } else {
-      el.pPoster.removeAttribute("src");
-      el.pPoster.setAttribute("hidden", "");
-    }
     el.player.style.setProperty("--amb", poster ? 'url("' + poster + '")' : "none");
-
-    if (!src) {
-      v.removeAttribute("src");
-      v.load();
-      pendingLink = vid.netdisk || "";
-      el.pStateLink.textContent = "在网盘里播放";
-      showState(
-        "cinema",
-        "点击播放",
-        "这一集在百度网盘里，点一下就用网盘的播放器打开",
-        ""
-      );
-      return;
-    }
-    pendingLink = "";
 
     showState("loading", "正在缓冲…", "");
     v.src = src;
@@ -626,10 +608,8 @@
 
   function closePlayer() {
     el.player.classList.remove("is-on");
-    el.player.classList.remove("is-nosrc");
     el.player.setAttribute("aria-hidden", "true");
     document.body.classList.remove("locked");
-    pendingLink = "";
     v.pause();
     v.removeAttribute("src");
     v.load();
@@ -676,27 +656,10 @@
     );
   });
 
-  v.addEventListener("click", (e) => {
-    if (pendingLink) {
-      e.stopPropagation(); /* 别再冒泡到 stage 开第二个窗口 */
-      openNetdisk(pendingLink);
-      return;
-    }
-    v.paused ? v.play() : v.pause();
-  });
+  v.addEventListener("click", () => (v.paused ? v.play() : v.pause()));
   el.pBigPlay.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (pendingLink) {
-      openNetdisk(pendingLink);
-      return;
-    }
     v.play();
-  });
-  /* 没有站内片源时，整块海报区都是「去网盘播放」的点击区 */
-  el.stage.addEventListener("click", (e) => {
-    if (!pendingLink) return;
-    if (e.target.closest("a, button")) return;
-    openNetdisk(pendingLink);
   });
   el.pClose.addEventListener("click", closePlayer);
   el.stage.addEventListener("dblclick", toggleFull);
@@ -815,8 +778,6 @@
       const idx = direct;
       setTimeout(() => {
         enterCategory(idx);
-        const ep = parseInt(m[2], 10);
-        if (ep > 0) setTimeout(() => openPlayer(idx, ep - 1), 300);
       }, 60);
       return; /* 深链直接进了目录，这次不算「停在目录页」 */
     }

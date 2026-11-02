@@ -119,21 +119,16 @@
   <div class="stage" id="pStage">
     <video id="pVideo" playsinline preload="metadata"></video>
 
-    <div class="stage-cine">
-      <div class="cine-frame">
-        <img class="stage-poster" id="pPoster" alt="" decoding="async" hidden>
-        <button class="big-play" id="pBigPlay" type="button" aria-label="播放">
-          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" aria-hidden="true"><path d="M8 5.5v13c0 1.1 1.2 1.8 2.1 1.2l9.4-6.5c.8-.6.8-1.8 0-2.4L10.1 4.3C9.2 3.7 8 4.4 8 5.5Z" fill="#2B2A33"/></svg>
-        </button>
-      </div>
-
-      <div class="stage-state" id="pState">
-        <div class="spinner" id="pSpinner"></div>
-        <p class="stage-title" id="pStateTitle">正在缓冲…</p>
-        <p class="stage-text" id="pStateText"></p>
-        <a class="btn btn-primary" id="pStateLink" href="#" target="_blank" rel="noopener" hidden>去网盘看</a>
-      </div>
+    <div class="stage-state" id="pState">
+      <div class="spinner" id="pSpinner"></div>
+      <p class="stage-title" id="pStateTitle">正在缓冲…</p>
+      <p class="stage-text" id="pStateText"></p>
+      <a class="btn btn-primary" id="pStateLink" href="#" target="_blank" rel="noopener" hidden>去网盘看</a>
     </div>
+
+    <button class="big-play" id="pBigPlay" type="button" aria-label="播放">
+      <svg viewBox="0 0 24 24" width="34" height="34" fill="none" aria-hidden="true"><path d="M8 5.5v13c0 1.1 1.2 1.8 2.1 1.2l9.4-6.5c.8-.6.8-1.8 0-2.4L10.1 4.3C9.2 3.7 8 4.4 8 5.5Z" fill="#2B2A33"/></svg>
+    </button>
   </div>
 
   <div class="controls">
