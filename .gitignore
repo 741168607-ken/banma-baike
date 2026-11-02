@@ -1,0 +1,13 @@
+# 本地同步脚本（会读网盘凭据，不进仓库）
+tools/
+
+# 同步中间产物
+.pan_manifest.json
+
+# 工作区内部数据（记忆、临时截图、探针页）
+.workbuddy/
+_t.html
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db

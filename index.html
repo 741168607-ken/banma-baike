@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFF7E9">
+<title>斑马放映室 · 扇形选片</title>
+<meta name="description" content="一叠卡片扇形展开，挑个目录，再挑一集，点开就播。">
+<!-- ── 图标 / 添加到主屏幕 ───────────────── -->
+<link rel="icon" href="assets/icons/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icons/icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="斑马放映室">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="斑马放映室">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<!-- ── 背景装饰 ───────────────────────────── -->
+<div class="bg" aria-hidden="true">
+  <span class="blob blob-a"></span>
+  <span class="blob blob-b"></span>
+  <span class="blob blob-c"></span>
+  <span class="grain"></span>
+</div>
+<div class="glow" id="glow" aria-hidden="true"></div>
+
+<!-- ── 顶栏 ───────────────────────────────── -->
+<header class="topbar">
+  <button class="avatar" id="avatarBtn" type="button" aria-label="我的">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+      <circle cx="12" cy="8.5" r="3.6" fill="#2B2A33"/>
+      <path d="M4.8 20c.9-3.6 3.7-5.4 7.2-5.4s6.3 1.8 7.2 5.4" stroke="#2B2A33" stroke-width="2.4" stroke-linecap="round"/>
+    </svg>
+  </button>
+</header>
+
+<main id="main">
+
+  <!-- ── 视图 1：选目录 ───────────────────── -->
+  <section class="view is-active" id="viewCats" aria-label="选择目录">
+    <h1 class="sr-only">斑马放映室 · 挑个目录看片</h1>
+
+    <div class="fan-wrap">
+      <button class="fan-arrow prev" id="catPrev" type="button" aria-label="上一组" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="fan" id="catFan" tabindex="0" role="listbox" aria-label="目录列表"></div>
+      <button class="fan-arrow next" id="catNext" type="button" aria-label="下一组" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true"><path d="M9.5 5 16.5 12l-7 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- ── 视图 2：选视频 ───────────────────── -->
+  <section class="view view-videos" id="viewVideos" aria-label="选择视频">
+    <div class="videos-head">
+      <button class="icon-btn back" id="backBtn" type="button" aria-label="返回目录">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+          <path d="M14.5 5 7.5 12l7 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <div class="vh-text">
+        <h2 class="vh-title" id="catTitle">动物世界</h2>
+      </div>
+    </div>
+
+    <div class="fan-wrap">
+      <button class="fan-arrow prev" id="videoPrev" type="button" aria-label="上一组" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="fan" id="videoFan" tabindex="0" role="listbox" aria-label="视频列表"></div>
+      <button class="fan-arrow next" id="videoNext" type="button" aria-label="下一组" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true"><path d="M9.5 5 16.5 12l-7 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- ── 空结果 ───────────────────────────── -->
+  <div class="empty" id="emptyState" hidden>
+    <div class="empty-art">
+      <svg viewBox="0 0 120 120" width="112" height="112" fill="none" aria-hidden="true">
+        <circle cx="60" cy="60" r="44" fill="#FFE9C2"/>
+        <circle cx="52" cy="52" r="15" stroke="#2B2A33" stroke-width="5"/>
+        <path d="M63 63 76 76" stroke="#2B2A33" stroke-width="5" stroke-linecap="round"/>
+        <path d="M40 92c6-4 12-6 20-6" stroke="#FF6B57" stroke-width="5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h3>没找着这一部</h3>
+    <p>换个词试试，或者回到目录重新挑</p>
+    <button class="btn btn-primary" id="emptyBack" type="button">回到目录</button>
+  </div>
+
+</main>
+
+<!-- ── 播放器 ─────────────────────────────── -->
+<div class="player" id="player" aria-hidden="true" role="dialog" aria-modal="true" aria-label="播放器">
+  <div class="player-top">
+    <div class="pt-titles">
+      <h3 id="pTitle">—</h3>
+      <p id="pMeta"></p>
+    </div>
+    <div class="pt-actions">
+      <a class="btn btn-ghost" id="pNetdisk" href="#" target="_blank" rel="noopener" hidden>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true"><path d="M14 4h6v6M20 4l-8.5 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 14v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        在网盘打开
+      </a>
+      <button class="icon-btn light" id="pClose" type="button" aria-label="关闭播放器">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="stage" id="pStage">
+    <video id="pVideo" playsinline preload="metadata"></video>
+
+    <div class="stage-state" id="pState">
+      <div class="spinner" id="pSpinner"></div>
+      <p class="stage-title" id="pStateTitle">正在缓冲…</p>
+      <p class="stage-text" id="pStateText"></p>
+      <a class="btn btn-primary" id="pStateLink" href="#" target="_blank" rel="noopener" hidden>去网盘看</a>
+    </div>
+
+    <button class="big-play" id="pBigPlay" type="button" aria-label="播放">
+      <svg viewBox="0 0 24 24" width="34" height="34" fill="none" aria-hidden="true"><path d="M8 5.5v13c0 1.1 1.2 1.8 2.1 1.2l9.4-6.5c.8-.6.8-1.8 0-2.4L10.1 4.3C9.2 3.7 8 4.4 8 5.5Z" fill="#2B2A33"/></svg>
+    </button>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl" id="cPlay" type="button" aria-label="播放/暂停">
+      <svg class="ic-play" viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true"><path d="M8 5.5v13c0 1.1 1.2 1.8 2.1 1.2l9.4-6.5c.8-.6.8-1.8 0-2.4L10.1 4.3C9.2 3.7 8 4.4 8 5.5Z" fill="currentColor"/></svg>
+      <svg class="ic-pause" viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true"><rect x="7" y="5" width="3.6" height="14" rx="1.6" fill="currentColor"/><rect x="13.4" y="5" width="3.6" height="14" rx="1.6" fill="currentColor"/></svg>
+    </button>
+
+    <div class="track" id="cTrack" role="slider" aria-label="进度" tabindex="0">
+      <div class="track-bg"></div>
+      <div class="track-fill" id="cFill"></div>
+      <div class="track-knob" id="cKnob"></div>
+    </div>
+
+    <span class="time" id="cTime">00:00 / 00:00</span>
+
+    <button class="ctrl" id="cMute" type="button" aria-label="静音">
+      <svg class="ic-vol" viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true"><path d="M4 9.5h3.2L12 5.6v12.8L7.2 14.5H4z" fill="currentColor"/><path d="M15.5 9c1.2 1.6 1.2 4.4 0 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <svg class="ic-mute" viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true"><path d="M4 9.5h3.2L12 5.6v12.8L7.2 14.5H4z" fill="currentColor"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+
+    <button class="ctrl" id="cFull" type="button" aria-label="全屏">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" aria-hidden="true"><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
