@@ -51,7 +51,7 @@ python tools/build_data.py          # 生成 assets/js/data.js
   ep: 3,                                  // 第几集，显示在牌角
   size: "328.8 MB",                       // 文件大小
   thumb: "assets/thumbs/c01_003.jpg",     // 网盘缩略图
-  netdisk: "https://pan.baidu.com/pfile/video?path=…",   // path 必须百分号编码
+  netdisk: "https://pan.baidu.com/play/video#/video?path=…",   // path 必须百分号编码
   path: "/斑马百科/0~4岁热学榜/02恐龙/3.恐龙的外表.mp4"
 }
 ```
@@ -102,7 +102,7 @@ python tools/build_data.py          # 生成 assets/js/data.js
 
 把直链批量填进 `data.js` 的 `src`，同一个播放器就会接管，不用改别的地方。
 
-一个现实限制：`pan.baidu.com/pfile/video?path=…`（旧版是 `play/video#/video?path=`，会报「视频加载失败」）是按「文件在你自己的网盘里」这个前提工作的。
+一个现实限制：`pan.baidu.com/play/video#/video?path=…` 是按「文件在你自己的网盘里」这个前提工作的 —— 它打开的是网盘自己的视频播放页（独立播放器 + 关灯 + 右下角全屏），不是 `pfile/video?path=…` 那个带「笔记 / AI看 / 库AI」右栏的文件预览页。
 **别人打开你的 GitHub Pages 点不出片**，只有你自己的浏览器（已登录同一账号）能播。
 要给外人看，必须走直链。
 

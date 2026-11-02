@@ -526,7 +526,7 @@
   function openNetdisk(url) {
     if (!url) return;
     const w = window.open(url, "_blank", "noopener");
-    if (w) toast("已打开百度网盘播放器 · 没登录会先请你登录");
+    if (w) toast("已打开百度网盘播放页 · 播放器右下角可全屏");
     else toast("浏览器拦了新窗口，允许弹出窗口后再点一次");
   }
 
