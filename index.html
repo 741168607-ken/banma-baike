@@ -158,6 +158,19 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<!-- 手机竖屏：不展示内容，提示横过来。牌的扇面需要横向宽度，竖屏摊不开 -->
+<div class="rotate-gate" id="rotateGate">
+  <div class="rg-stage">
+    <div class="rg-phone"><span></span></div>
+    <svg class="rg-arc" viewBox="0 0 96 96" fill="none" aria-hidden="true">
+      <path d="M12 74a42 42 0 0 1 34-45" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="1 10"/>
+      <path d="M84 74a42 42 0 0 0-34-45" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="1 10"/>
+    </svg>
+  </div>
+  <p class="rg-title">把手机横过来</p>
+  <p class="rg-sub">横屏才摊得开卡片</p>
+</div>
+
 <script src="assets/js/data.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

@@ -139,6 +139,9 @@
       const w = fanEl.clientWidth || 1200;
       const h = fanEl.clientHeight || 420;
       const portrait = h > w * 0.85;
+      /* 手机横屏：扇形容器只有三百来像素高，牌一多就只能靠整体缩小塞进来，
+         叠得密密麻麻。少放几张、卡片按高度定尺，上下才留得出呼吸 */
+      if (h <= 400 && w > h) return w >= 760 ? 5 : 4;
       if (w < 560) return 4;
       if (w < 760) return 5;
       /* 平板竖屏：同样宽度下能摊的牌比横屏少得多 */
@@ -153,8 +156,10 @@
     function measure() {
       const W0 = fanEl.clientWidth || 1200;
       const H = fanEl.clientHeight || 420;
+      /* 手机横屏：矮而宽，不能用平板那套留白和角度，否则牌会被压小、挤成一撮 */
+      const phoneLand = H <= 400 && W0 > H;
       /* 左右留白，别让最外侧的牌顶到屏幕边 */
-      const inset = W0 > 1000 ? 88 : W0 > 640 ? 40 : 14;
+      const inset = phoneLand ? 22 : W0 > 1000 ? 88 : W0 > 640 ? 40 : 14;
       const W = Math.max(300, W0 - inset * 2);
       const n = Math.max(1, shown.length);
 
@@ -171,10 +176,16 @@
         cw = Math.min(roomy, (W - 30) / (1 + 0.34 * (n - 1)));
       }
       cw = Math.max(96, Math.min(cap, cw));
+      /* 手机横屏：卡高不能吃掉整个屏高，否则一旋转、一抬升就顶出上下边。
+         视频卡更宽（ratio 小）、旋转后上下角张得更开，要再收一档 */
+      if (phoneLand) cw = Math.min(cw, ((H - 26) * (ratio < 1.2 ? 0.62 : 0.7)) / ratio);
+
+      /* 总张开的角：手机横屏牌多、屏矮，摊太开会顶到上下边 */
+      if (phoneLand && maxAngle) maxAngle = n <= 4 ? 15 : 16;
       const ch = cw * ratio;
 
       /* 竖屏平板：屏幕很高，弧摊得更开一点，否则整把牌像贴在中间一条 */
-      if (maxAngle && H > ch * 1.5) maxAngle = Math.min(29, maxAngle + 4);
+      if (!phoneLand && maxAngle && H > ch * 1.5) maxAngle = Math.min(29, maxAngle + 4);
 
       let R, dyMax, partDeg;
       if (n < 2 || !maxAngle) {
@@ -189,10 +200,21 @@
         };
         /* 先按完全散开的角度算一版半径 */
         R = fit(maxAngle + 4.5);
-        /* 停留时两侧让开的角（按像素等价换算，窄屏角度要大得多） */
-        partDeg = Math.max(2.6, Math.min(9, ((cw * 0.34) / R) * 57.2958));
+        /* 停留时两侧让开的角（按像素等价换算，窄屏角度要大得多）。
+           上限跟着「每张相隔多少度」走：让位角一旦超过间隔，左右就换位错开 */
+        const stepA = n > 1 ? (2 * maxAngle) / (n - 1) : 0;
+        const partWant = ((cw * 0.34) / R) * 57.2958;
+        const partMax = phoneLand ? Math.min(5.5, stepA * 0.55) : Math.min(9, stepA * 0.7);
+        partDeg = Math.max(2.6, Math.min(partMax, partWant));
         /* 把让开的角度也预先留进宽度里，否则一停留最外侧的牌就顶出屏幕 */
         R = fit(maxAngle + partDeg + 1.5);
+        /* 手机横屏宽度富余，半径容易被宽度撑得太大，牌会拉成稀稀一排、没了叠牌感；
+           按「每张露出 2/3 卡宽」给半径封顶 */
+        if (phoneLand && n > 1) {
+          const stepRad = ((2 * maxAngle) / (n - 1)) * Math.PI / 180;
+          const rCap = (0.66 * cw) / Math.max(0.03, Math.sin(stepRad));
+          R = Math.max(cw * 1.45, Math.min(R, rCap));
+        }
         const rad = (maxAngle * Math.PI) / 180;
         dyMax = R * (1 - Math.cos(rad));
       }
@@ -209,6 +231,7 @@
 
       geo.R = R; geo.dyMax = dyMax; geo.maxAngle = maxAngle; geo.cw = cw; geo.n = n;
       geo.partDeg = partDeg;
+      geo.phoneLand = phoneLand;
     }
 
     /* 整把牌的外层变换：等比缩放 + 拖动时的跟手位移 */
@@ -237,9 +260,16 @@
           if (i === focus) {
             /* 停住的这张：扶正、抬起来 */
             rot = base * 0.4;
-            /* 往上抽出来，而不是只抬一点：窄屏上平着抬会整张压住旁边的牌 */
-            lift = -(geo.cw * ratio * 0.44);
-            sc = 1.05;
+            if (geo.phoneLand) {
+              /* 手机横屏没有竖向余量，抬 0.44 个卡高会顶出屏幕，
+                 改成「几乎不抬 + 略微放大」，靠白边和阴影强调 */
+              lift = -(geo.cw * ratio * 0.06);
+              sc = 1.07;
+            } else {
+              /* 往上抽出来，而不是只抬一点：窄屏上平着抬会整张压住旁边的牌 */
+              lift = -(geo.cw * ratio * 0.44);
+              sc = 1.05;
+            }
           } else {
             /* 其余的：整半边平移让开，彼此间距不变，只在中间裂开一道缝.
                用像素换算角度：半径 R 小的窄屏，3.2° 只有二十几像素，等于没让开 */
@@ -987,6 +1017,12 @@
     tickPool();
   }
 
+  /* 手机竖屏被「把手机横过来」挡住时，画面是看不见的，先用一个探针问一下 */
+  function rotateGated() {
+    var g = document.getElementById("rotateGate");
+    return !!g && getComputedStyle(g).display !== "none";
+  }
+
   /* ── 开屏欢迎语 ─────────────────────────── */
   /* 只在「目录页第一次加载完」放一次；从下级目录返回不重放 */
   function playWelcome() {
@@ -1005,18 +1041,38 @@
       return p.then(function () { return true; }).catch(function () { return false; });
     }
 
+    function kickLater() {
+      /* 浏览器还没有用户手势，等第一次点击 / 按键补播 */
+      var KICKS = ["pointerdown", "keydown", "touchstart"];
+      function kick() {
+        a.play().catch(function () {});
+        KICKS.forEach(function (t) { window.removeEventListener(t, kick); });
+      }
+      KICKS.forEach(function (t) { window.addEventListener(t, kick, { passive: true }); });
+    }
+
+    function fire() {
+      once().then(function (ok) {
+        if (!ok) kickLater();
+      });
+    }
+
     /* 时长 ~3.9s（小女孩邀请），等扇形落位再起，别跟飞入动画抢注意力 */
     setTimeout(function () {
-      once().then(function (ok) {
-        if (ok) return;
-        /* 浏览器还没有用户手势，等第一次点击 / 按键补播 */
-        var KICKS = ["pointerdown", "keydown", "touchstart"];
-        function kick() {
-          a.play().catch(function () {});
-          KICKS.forEach(function (t) { window.removeEventListener(t, kick); });
+      /* 竖屏还挡着就别念了——用户正看着「请横过来」，听到招呼只会莫名其妙。
+         等真的横过来（或窗口够宽了）再打招呼 */
+      if (rotateGated()) {
+        function waitTurn() {
+          if (rotateGated()) return;
+          window.removeEventListener("orientationchange", waitTurn);
+          window.removeEventListener("resize", waitTurn);
+          setTimeout(fire, 240);
         }
-        KICKS.forEach(function (t) { window.addEventListener(t, kick, { passive: true }); });
-      });
+        window.addEventListener("orientationchange", waitTurn);
+        window.addEventListener("resize", waitTurn);
+        return;
+      }
+      fire();
     }, 360);
   }
 
