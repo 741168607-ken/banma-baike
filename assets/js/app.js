@@ -126,7 +126,12 @@
     let per = 10;
     let focus = -1;                      // 当前停留的牌（页内下标）
 
-    const geo = { R: 900, dyMax: 0, maxAngle: 26, cw: 190, n: 0, partDeg: 3.2 };
+    const geo = { R: 900, dyMax: 0, maxAngle: 26, cw: 190, n: 0, partDeg: 3.2, k: 1 };
+
+    /* 拖动状态：dragX 是整把牌跟着手指挪的那点位移 */
+    let drag = null;
+    let dragX = 0;
+    let tapBlockUntil = 0;   /* 刚拖完的这一小会儿，浏览器补的 click 不算点击 */
 
     /* 一屏放几张：窄屏少放几张，牌才不会小到看不清；
        平板竖屏和横屏可用宽度差很多，分开判断 */
@@ -198,10 +203,21 @@
       /* 竖向放不下就整把等比缩小 */
       const needH = ch + dyMax + 24;
       const k = needH > H ? Math.max(0.45, H / needH) : 1;
-      fanEl.style.transform = k < 0.99 ? "scale(" + k.toFixed(3) + ")" : "";
+      geo.k = k;
+      dragX = 0;
+      applyFanTransform();
 
       geo.R = R; geo.dyMax = dyMax; geo.maxAngle = maxAngle; geo.cw = cw; geo.n = n;
       geo.partDeg = partDeg;
+    }
+
+    /* 整把牌的外层变换：等比缩放 + 拖动时的跟手位移 */
+    function applyFanTransform() {
+      const t = [];
+      if (dragX) t.push("translate3d(" + dragX.toFixed(1) + "px,0,0)");
+      const k = geo.k || 1;
+      if (k < 0.99) t.push("scale(" + k.toFixed(3) + ")");
+      fanEl.style.transform = t.join(" ");
     }
 
     /* 把每张牌摆到扇形上的对应位置 */
@@ -305,6 +321,7 @@
       if (i < 0 || i >= shown.length || i === focus) return;
       focus = i;
       place();
+      tick();
       notify();
     }
 
@@ -322,15 +339,24 @@
       return true;
     }
 
-    function goPage(p) {
+    /* 翻页；edge 指定落在新一屏的哪张（默认中间那张） */
+    function goPage(p, edge) {
       const total = pageCount();
       page = ((p % total) + total) % total;
       renderPage();
+      if (edge === "first" && shown.length) setFocus(0);
+      else if (edge === "last" && shown.length) setFocus(shown.length - 1);
+      else tick();
+    }
+
+    /* 手指划过一张牌大约要移动多少像素 */
+    function stepPx() {
+      return Math.max(46, (geo.cw || 190) * 0.42);
     }
 
     /* 鼠标划过：翻到哪张 */
     fanEl.addEventListener("pointerover", (e) => {
-      if (e.pointerType === "touch") return;
+      if (e.pointerType === "touch" || drag) return;
       const card = e.target.closest(".fcard");
       if (!card) return;
       const i = shown.indexOf(card);
@@ -339,6 +365,11 @@
 
     /* 点击：没翻开就先翻开，已经翻开就进去 */
     fanEl.addEventListener("click", (e) => {
+      /* 刚拖完手抬起时浏览器还会补一个 click，别当成点击 */
+      if (Date.now() < tapBlockUntil) {
+        e.preventDefault();
+        return;
+      }
       const card = e.target.closest(".fcard");
       if (!card) return;
       const i = shown.indexOf(card);
@@ -351,6 +382,82 @@
     });
 
     fanEl.addEventListener("dragstart", (e) => e.preventDefault());
+
+    /* ── 手指 / 鼠标拖动：牌跟着手走 ─────────────
+       手指往左划 → 视线往右翻；一次划一张牌的距离（stepPx）就切一张。
+       两个边界处继续划会翻到上一屏 / 下一屏。 */
+    fanEl.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (drag) return;
+      drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, f0: focus, dx: 0, moved: false };
+      try { fanEl.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    fanEl.addEventListener("pointermove", (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const dx = e.clientX - drag.x0;
+      const dy = e.clientY - drag.y0;
+
+      if (!drag.moved) {
+        /* 先判方向：竖着划、或者还没超过抖动阈值，都不算拖动 */
+        if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy)) return;
+        drag.moved = true;
+        fanEl.classList.add("is-dragging");
+      }
+
+      drag.dx = dx;
+      const step = stepPx();
+      const max = shown.length - 1;
+      const p = drag.f0 - dx / step;            /* 连续位置：拖多远走多远 */
+      const pc = Math.max(0, Math.min(max, p));
+      const near = Math.round(pc);
+
+      if (near !== focus) {
+        focus = near;
+        place();
+        tick();
+      }
+
+      /* 剩下的零头让整把牌跟手一点，到两端时带阻尼 */
+      const over = p < 0 ? p : p > max ? p - max : 0;
+      const rem = (pc - near) * step + Math.max(-step * 0.5, Math.min(step * 0.5, over * step * 0.35));
+      dragX = rem * 0.75;
+      applyFanTransform();
+    });
+
+    function endDrag(e) {
+      if (!drag || (e && e.pointerId !== drag.id)) return;
+      const d = drag;
+      drag = null;
+      fanEl.classList.remove("is-dragging");
+      dragX = 0;
+      applyFanTransform();
+
+      try { fanEl.releasePointerCapture(d.id); } catch (err) {}
+
+      if (!d.moved) return;
+      tapBlockUntil = Date.now() + 260;
+
+      const step = stepPx();
+      const p = d.f0 - d.dx / step;
+      const max = shown.length - 1;
+
+      /* 已经划到这一屏的尽头还继续划：翻到下一屏 / 上一屏
+         （到头了就不再绕回去，只让牌弹回原位） */
+      if (p > max + 0.55 && page < pageCount() - 1) {
+        goPage(page + 1, "first");
+        return;
+      }
+      if (p < -0.55 && page > 0) {
+        goPage(page - 1, "last");
+        return;
+      }
+      notify();
+    }
+
+    fanEl.addEventListener("pointerup", endDrag);
+    fanEl.addEventListener("pointercancel", endDrag);
+    fanEl.addEventListener("lostpointercapture", () => { if (drag) endDrag(); });
 
     /* 键盘 */
     fanEl.addEventListener("keydown", (e) => {
@@ -830,6 +937,54 @@
       },
       { passive: false }
     );
+  }
+
+  /* ── 切卡的一声「哒」 ───────────────────── */
+  /* 每换一张牌响一下。用几个 <audio> 轮着播，可以叠着响；
+     每次都微调音高和音量，连划十几张也不会像机关枪。 */
+  const tickPool = (function () {
+    const SIZE = 4;
+    const pool = [];
+    let idx = 0;
+    let armed = false;   /* 浏览器要求先有用户手势才能出声 */
+
+    for (let i = 0; i < SIZE; i++) {
+      const a = new Audio("assets/audio/tick.mp3");
+      a.preload = "auto";
+      a.volume = 0.3;
+      pool.push(a);
+    }
+
+    /* 第一次触摸 / 按键之后才允许响：开屏复原位置时不该「哒」一声 */
+    const arm = () => { armed = true; };
+    ["pointerdown", "keydown", "touchstart"].forEach((t) => {
+      window.addEventListener(t, arm, { passive: true, once: true });
+    });
+
+    return function play() {
+      if (!armed) return;
+      let a = null;
+      for (let i = 0; i < SIZE; i++) {
+        const c = pool[(idx + i) % SIZE];
+        if (c.paused || c.ended) {
+          a = c;
+          idx = (idx + i + 1) % SIZE;
+          break;
+        }
+      }
+      if (!a) { a = pool[idx]; idx = (idx + 1) % SIZE; }
+      try {
+        a.volume = 0.26 + Math.random() * 0.1;
+        a.playbackRate = 0.94 + Math.random() * 0.12;
+        a.currentTime = 0;
+        const p = a.play();
+        if (p && p.catch) p.catch(() => {});
+      } catch (err) {}
+    };
+  })();
+
+  function tick() {
+    tickPool();
   }
 
   /* ── 开屏欢迎语 ─────────────────────────── */

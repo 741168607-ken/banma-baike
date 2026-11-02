@@ -150,7 +150,13 @@ body.in-videos #viewCats { transform: translateX(-40px) scale(0.98); }
   outline: none;
   transform-origin: 50% 50%;
   transition: transform 0.3s var(--ease);
+  /* 手指在扇形区域里划动是用来翻牌的，别让浏览器拿去滚页/回退 */
+  touch-action: none;
 }
+
+/* 拖动中：整把牌 1:1 跟手，牌与牌之间快速跟位，松手后再弹回弹簧 */
+.fan.is-dragging { transition: none; }
+.fan.is-dragging .fcard { transition: transform 0.16s ease-out, filter 0.3s var(--ease); }
 
 /* 单张牌 */
 .fcard {
