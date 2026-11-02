@@ -9,6 +9,18 @@
   const $ = (sel, root) => (root || document).querySelector(sel);
   const CATS = S.categories || [];
 
+  /* 浏览器认 webp 就用 webp（体积约为同名 jpg 的一半），否则退回 jpg */
+  const WEBP_OK = (function () {
+    try {
+      return document.createElement("canvas").toDataURL("image/webp").indexOf("data:image/webp") === 0;
+    } catch (e) {
+      return false;
+    }
+  })();
+  function pic(src) {
+    return WEBP_OK && /\.jpe?g$/i.test(src) ? src.replace(/\.jpe?g$/i, ".webp") : src;
+  }
+
   const el = {
     catFan: $("#catFan"),
     catCount: $("#catCount"),
@@ -424,7 +436,7 @@
       card.innerHTML =
         '<div class="fcard-face">' +
         '<div class="fcard-art">' +
-        '<img alt="" src="' + esc(c.cover) + '"' + (i < 6 ? "" : ' loading="lazy"') + ">" +
+        '<img alt="" src="' + esc(pic(c.cover)) + '" width="560" height="787" decoding="async"' + (i < 6 ? "" : ' loading="lazy"') + ">" +
         '<span class="fcard-veil"></span>' +
         (c.no ? '<span class="fcard-no">' + esc(c.no) + "</span>" : "") +
         '<span class="fcard-label"><b>' + esc(c.name) + "</b><i>" + (c.videos || []).length + " 集</i></span>" +
@@ -449,7 +461,7 @@
       card.innerHTML =
         '<div class="fcard-face">' +
         '<div class="fcard-art fcard-art-v' + (v.thumb ? "" : " is-fallback") + '">' +
-        '<img alt="" src="' + esc(v.thumb || cat.cover) + '" loading="lazy">' +
+        '<img alt="" src="' + esc(pic(v.thumb || cat.cover)) + '" width="480" height="270" decoding="async" loading="lazy">' +
         '<span class="fcard-play"><svg viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M8 5.5v13c0 1.1 1.2 1.8 2.1 1.2l9.4-6.5c.8-.6.8-1.8 0-2.4L10.1 4.3C9.2 3.7 8 4.4 8 5.5Z" fill="currentColor"/></svg></span>' +
         (v.duration ? '<span class="fcard-dur">' + esc(v.duration) + "</span>" : "") +
         '<span class="fcard-no">' + pad(v.ep || idx + 1) + "</span>" +
@@ -558,9 +570,9 @@
     el.cTime.textContent = "00:00 / 00:00";
     el.pBigPlay.classList.remove("is-hidden");
 
-    const poster = vid.thumb || cat.cover || "";
+    const poster = pic(vid.thumb || cat.cover || "");
     /* 只有真实（横版）缩略图才当海报用，避免竖版封面被压成窄条 */
-    if (vid.thumb) v.poster = vid.thumb;
+    if (vid.thumb) v.poster = pic(vid.thumb);
     else v.removeAttribute("poster");
     el.player.style.setProperty("--amb", poster ? 'url("' + poster + '")' : "none");
 
