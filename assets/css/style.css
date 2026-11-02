@@ -471,6 +471,58 @@ body.in-videos #viewCats { transform: translateX(-40px) scale(0.98); }
 
 .stage-state.is-error { background-image: linear-gradient(rgba(10, 9, 8, 0.9), rgba(10, 9, 8, 0.95)), var(--amb, none); }
 
+/* 影院页的容器：平时不生成盒子（display:contents），海报层就跟原来一样叠在 stage 上 */
+.stage-cine, .cine-frame { display: contents; }
+
+/* 影院页的大海报（只用真正的横版缩略图） */
+.stage-poster { display: none; }
+.stage-poster[hidden] { display: none; }
+
+.player.is-nosrc .stage { margin: 0; }
+.player.is-nosrc .stage video { opacity: 0; pointer-events: none; }
+.player.is-nosrc .controls { display: none; }
+.player.is-nosrc .spinner { display: none; }
+
+/* 没有站内片源时：海报 + 大播放键 + 说明，竖排居中 */
+.player.is-nosrc .stage-cine {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: clamp(16px, 2.8vh, 34px);
+  width: 100%; height: 100%;
+  padding: 0 clamp(16px, 4vw, 44px);
+  box-sizing: border-box;
+}
+
+.player.is-nosrc .cine-frame {
+  display: block; position: relative;
+  width: min(94%, 1000px);
+}
+
+.player.is-nosrc .stage-poster {
+  display: block;
+  width: 100%; height: auto;
+  max-height: 58vh;
+  aspect-ratio: 16 / 9; object-fit: cover;
+  border-radius: 18px;
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.9);
+}
+
+.player.is-nosrc .big-play {
+  inset: 0; margin: auto;
+  width: clamp(72px, 8vw, 96px); height: clamp(72px, 8vw, 96px);
+}
+
+.player.is-nosrc .stage-state {
+  position: static; inset: auto;
+  flex: none;
+  width: min(94%, 1000px);
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+.player.is-nosrc .stage-title { font-size: clamp(19px, 2.2vw, 27px); }
+.player.is-nosrc .stage-text { font-size: clamp(13.5px, 1.2vw, 15.5px); }
+
 .stage-title { margin: 0; font-size: 19px; font-weight: 900; }
 .stage-text { margin: 0; max-width: 460px; font-size: 14.5px; line-height: 1.7; color: rgba(255, 255, 255, 0.62); }
 

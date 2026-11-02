@@ -23,10 +23,6 @@ window.SITE = {
   brand: "斑马放映室",
   tagline: "扇形选片，点开就播",
 
-  /* 所有 src 为空的视频都会播这一条（演示用）。
-     不想要演示片就把这里改成 ""。 */
-  demoFallback: "https://media.w3.org/2010/05/sintel/trailer.mp4",
-
   categories: [
     {
       no: "01",
