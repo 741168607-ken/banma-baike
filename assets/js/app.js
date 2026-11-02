@@ -555,7 +555,7 @@
      办法：把「哪个目录、停在第几集」写进 sessionStorage（同一标签页有效，关掉即清），
      页面重载时照原样复原。iOS 上这段等于没跑，行为不变。 */
   const SKEY = "bm.fan.v1";
-  const WKEY = "bm.welcomed";
+  const WKEY = "bm.welcomed2";
 
   function persist() {
     try {
@@ -992,7 +992,7 @@
   function playWelcome() {
     var a;
     try {
-      a = new Audio("assets/audio/welcome.mp3");
+      a = new Audio("assets/audio/welcome-girl.mp3");
     } catch (err) {
       return;
     }
@@ -1005,7 +1005,7 @@
       return p.then(function () { return true; }).catch(function () { return false; });
     }
 
-    /* 时长 ~3.3s，等扇形落位再起，别跟飞入动画抢注意力 */
+    /* 时长 ~3.9s（小女孩邀请），等扇形落位再起，别跟飞入动画抢注意力 */
     setTimeout(function () {
       once().then(function (ok) {
         if (ok) return;
