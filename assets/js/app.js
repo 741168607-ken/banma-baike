@@ -733,6 +733,27 @@
     }
   });
 
+  /* ── 禁缩放 ─────────────────────────────── */
+  /* viewport 里已经 user-scalable=no，但 iOS Safari 从 10 起会忽略它，
+     所以再补一道手势拦截：只拦「多于一根手指」的触摸，单指拖动卡片不受影响 */
+  function lockZoom() {
+    var stop = function (e) { e.preventDefault(); };
+
+    /* 双指捏合（iOS 专有 gesture 事件） */
+    ["gesturestart", "gesturechange", "gestureend"].forEach(function (t) {
+      document.addEventListener(t, stop, { passive: false });
+    });
+
+    /* 多指 touchmove —— Safari 的 pinch 走这条路 */
+    document.addEventListener(
+      "touchmove",
+      function (e) {
+        if (e.touches && e.touches.length > 1) e.preventDefault();
+      },
+      { passive: false }
+    );
+  }
+
   /* ── 开屏欢迎语 ─────────────────────────── */
   /* 只在「目录页第一次加载完」放一次；从下级目录返回不重放 */
   function playWelcome() {
@@ -768,6 +789,7 @@
 
   /* ── 启动 ───────────────────────────────── */
   (function init() {
+    lockZoom();
     renderCats();
     setView("cats");
 

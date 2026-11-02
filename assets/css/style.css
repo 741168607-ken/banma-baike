@@ -32,6 +32,9 @@
 
 html, body { height: 100%; overflow: hidden; }
 
+/* 禁缩放：双击 / 捏合都不放大，避免卡片扇面被意外拉偏 */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
 * { -webkit-tap-highlight-color: transparent; }
 body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
