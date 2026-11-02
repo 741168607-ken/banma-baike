@@ -132,6 +132,7 @@
     let drag = null;
     let dragX = 0;
     let tapBlockUntil = 0;   /* 刚拖完的这一小会儿，浏览器补的 click 不算点击 */
+    let lastDownCard = null; /* 按下时落在哪张牌上（click 被改派时的兜底） */
 
     /* 一屏放几张：窄屏少放几张，牌才不会小到看不清；
        平板竖屏和横屏可用宽度差很多，分开判断 */
@@ -139,9 +140,10 @@
       const w = fanEl.clientWidth || 1200;
       const h = fanEl.clientHeight || 420;
       const portrait = h > w * 0.85;
-      /* 手机横屏：扇形容器只有三百来像素高，牌一多就只能靠整体缩小塞进来，
-         叠得密密麻麻。少放几张、卡片按高度定尺，上下才留得出呼吸 */
-      if (h <= 400 && w > h) return w >= 760 ? 5 : 4;
+      /* 手机横屏：屏矮但够宽，靠叠牌换数量。主流宽度直接给到 12，目录 10 张、
+         每集 12 集都能一屏摊完，不用再翻页；小屏（≤700）牌太挤会让中间那张
+         把邻居全盖住，退到 8 张，保证每张都露得出来 */
+      if (h <= 400 && w > h) return w >= 700 ? 12 : 8;
       if (w < 560) return 4;
       if (w < 760) return 5;
       /* 平板竖屏：同样宽度下能摊的牌比横屏少得多 */
@@ -166,8 +168,9 @@
       /* 总张开的角：牌越多摊得越开 */
       let maxAngle = n < 2 ? 0 : n >= 8 ? 26 : n >= 4 ? 21 : 15;
 
-      /* 先按宽度定卡宽，保证整把牌塞得下（叠一半） */
-      let cw = (W - 30) / (1 + 0.5 * (n - 1));
+      /* 先按宽度定卡宽，保证整把牌塞得下（叠一半）。
+         手机横屏张数多，叠得浅一点就全给压成细条了，改用更深的叠法 */
+      let cw = (W - 30) / (1 + (phoneLand && n > 5 ? 0.26 : 0.5) * (n - 1));
       /* 张数少的时候（平板/手机档）牌可以更大，不必守着 208 */
       const cap = n <= 6 ? 236 : 208;
       /* 竖向还有富余时，允许叠得更紧一点、把牌放大 */
@@ -176,48 +179,64 @@
         cw = Math.min(roomy, (W - 30) / (1 + 0.34 * (n - 1)));
       }
       cw = Math.max(96, Math.min(cap, cw));
-      /* 手机横屏：卡高不能吃掉整个屏高，否则一旋转、一抬升就顶出上下边。
-         视频卡更宽（ratio 小）、旋转后上下角张得更开，要再收一档 */
-      if (phoneLand) cw = Math.min(cw, ((H - 26) * (ratio < 1.2 ? 0.62 : 0.7)) / ratio);
 
       /* 总张开的角：手机横屏牌多、屏矮，摊太开会顶到上下边 */
-      if (phoneLand && maxAngle) maxAngle = n <= 4 ? 15 : 16;
-      const ch = cw * ratio;
-
+      if (phoneLand && maxAngle) maxAngle = n <= 4 ? 15 : n <= 6 ? 16 : 19;
       /* 竖屏平板：屏幕很高，弧摊得更开一点，否则整把牌像贴在中间一条 */
-      if (!phoneLand && maxAngle && H > ch * 1.5) maxAngle = Math.min(29, maxAngle + 4);
+      else if (maxAngle && H > cw * ratio * 1.5) maxAngle = Math.min(29, maxAngle + 4);
 
-      let R, dyMax, partDeg;
-      if (n < 2 || !maxAngle) {
-        R = cw * 1.4;
-        dyMax = 0;
-        partDeg = 0;
-      } else {
+      /* 给定卡宽反推扇形的半径、抬升与让位角 */
+      function geomFor(w, ang) {
+        const hh = w * ratio;
+        if (n < 2 || !ang) return { R: w * 1.4, dyMax: 0, partDeg: 0 };
         const fit = (deg) => {
           const rad = (deg * Math.PI) / 180;
-          const bbox = cw * Math.cos(rad) + ch * Math.sin(rad);
-          return Math.max((W - bbox) / (2 * Math.sin(rad)), cw * 1.4);
+          const bbox = w * Math.cos(rad) + hh * Math.sin(rad);
+          return Math.max((W - bbox) / (2 * Math.sin(rad)), w * 1.4);
         };
         /* 先按完全散开的角度算一版半径 */
-        R = fit(maxAngle + 4.5);
+        let R = fit(ang + 4.5);
         /* 停留时两侧让开的角（按像素等价换算，窄屏角度要大得多）。
            上限跟着「每张相隔多少度」走：让位角一旦超过间隔，左右就换位错开 */
-        const stepA = n > 1 ? (2 * maxAngle) / (n - 1) : 0;
-        const partWant = ((cw * 0.34) / R) * 57.2958;
-        const partMax = phoneLand ? Math.min(5.5, stepA * 0.55) : Math.min(9, stepA * 0.7);
-        partDeg = Math.max(2.6, Math.min(partMax, partWant));
+        const stepA = (2 * ang) / (n - 1);
+        const partWant = ((w * 0.34) / R) * 57.2958;
+        const partMax = phoneLand ? Math.min(5.5, stepA * 0.5) : Math.min(9, stepA * 0.7);
+        /* 张数多的时候每张只隔几度，让位角必须跟着缩，否则左右会换位 */
+        const partMin = Math.min(2.6, stepA * 0.32);
+        const partDeg = Math.max(partMin, Math.min(partMax, partWant));
         /* 把让开的角度也预先留进宽度里，否则一停留最外侧的牌就顶出屏幕 */
-        R = fit(maxAngle + partDeg + 1.5);
+        R = fit(ang + partDeg + 1.5);
         /* 手机横屏宽度富余，半径容易被宽度撑得太大，牌会拉成稀稀一排、没了叠牌感；
            按「每张露出 2/3 卡宽」给半径封顶 */
-        if (phoneLand && n > 1) {
-          const stepRad = ((2 * maxAngle) / (n - 1)) * Math.PI / 180;
-          const rCap = (0.66 * cw) / Math.max(0.03, Math.sin(stepRad));
-          R = Math.max(cw * 1.45, Math.min(R, rCap));
+        if (phoneLand) {
+          const stepRad = ((2 * ang) / (n - 1)) * Math.PI / 180;
+          const rCap = (0.66 * w) / Math.max(0.03, Math.sin(stepRad));
+          R = Math.max(w * 1.45, Math.min(R, rCap));
         }
-        const rad = (maxAngle * Math.PI) / 180;
-        dyMax = R * (1 - Math.cos(rad));
+        const rad = (ang * Math.PI) / 180;
+        return { R, dyMax: R * (1 - Math.cos(rad)), partDeg };
       }
+
+      let g = geomFor(cw, maxAngle);
+
+      /* 手机横屏没有整体缩放的余地（缩了整把牌就成一条），
+         直接按可用高度反解卡宽：既要张数多，又要卡尽量大。
+         算高度必须带上「旋转后的包围盒」——外侧的牌转了 20 多度，
+         竖直方向比卡高还高一截，只按卡高算必然顶出下边缘 */
+      if (phoneLand && n > 1) {
+        const rad = (maxAngle * Math.PI) / 180;
+        const visH = (w, gg) => w * ratio * Math.cos(rad) + w * Math.sin(rad) + gg.dyMax;
+        let guard = 0;
+        while (cw > 96 && visH(cw, g) + 22 > H && guard++ < 30) {
+          const room = Math.max(60, H - 22 - g.dyMax);
+          const fitW = room / (ratio * Math.cos(rad) + Math.sin(rad));
+          cw = Math.max(96, Math.min(cw * 0.985, fitW));
+          g = geomFor(cw, maxAngle);
+        }
+      }
+
+      const ch = cw * ratio;
+      const R = g.R, dyMax = g.dyMax, partDeg = g.partDeg;
 
       fanEl.style.setProperty("--cw", cw.toFixed(1) + "px");
       fanEl.style.setProperty("--ch", ch.toFixed(1) + "px");
@@ -232,6 +251,9 @@
       geo.R = R; geo.dyMax = dyMax; geo.maxAngle = maxAngle; geo.cw = cw; geo.n = n;
       geo.partDeg = partDeg;
       geo.phoneLand = phoneLand;
+      /* 牌多的时候改成「从中间向两边摊开」的叠法：
+         右边一组反过来叠，让每张露出的是外侧，而不是被中间那张吃掉 */
+      geo.dense = phoneLand || n >= 8;
     }
 
     /* 整把牌的外层变换：等比缩放 + 拖动时的跟手位移 */
@@ -262,9 +284,10 @@
             rot = base * 0.4;
             if (geo.phoneLand) {
               /* 手机横屏没有竖向余量，抬 0.44 个卡高会顶出屏幕，
-                 改成「几乎不抬 + 略微放大」，靠白边和阴影强调 */
-              lift = -(geo.cw * ratio * 0.06);
-              sc = 1.07;
+                 改成「几乎不抬 + 略微放大」，靠白边和阴影强调。
+                 放大也别过头：牌一多，中间这张一鼓就把两边全遮住了 */
+              lift = -(geo.cw * ratio * 0.04);
+              sc = 1.03;
             } else {
               /* 往上抽出来，而不是只抬一点：窄屏上平着抬会整张压住旁边的牌 */
               lift = -(geo.cw * ratio * 0.44);
@@ -286,7 +309,9 @@
         card.style.transform =
           "translate(-50%,-50%) translate(" + dx.toFixed(1) + "px," + (dy + lift).toFixed(1) + "px)" +
           " rotate(" + rot.toFixed(2) + "deg) scale(" + sc + ")";
-        card.style.zIndex = String(i === focus ? 300 : 10 + i);
+        card.style.zIndex = String(
+          i === focus ? 300 : geo.dense ? (i < focus ? 20 + i : 40 + (n - i)) : 10 + i
+        );
         card.classList.toggle("is-focus", i === focus);
         /* 右侧的牌被中间那张压住左半边，角标翻到右边才看得见 */
         card.classList.toggle("badge-end", focus >= 0 && i > focus);
@@ -400,8 +425,9 @@
         e.preventDefault();
         return;
       }
-      const card = e.target.closest(".fcard");
+      const card = (e.target.closest && e.target.closest(".fcard")) || lastDownCard;
       if (!card) return;
+      lastDownCard = null;
       const i = shown.indexOf(card);
       if (i < 0) return;
       if (i !== focus) {
@@ -420,10 +446,15 @@
       if (e.pointerType === "mouse" && e.button !== 0) return;
       if (drag) return;
       drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, f0: focus, dx: 0, moved: false };
-      try { fanEl.setPointerCapture(e.pointerId); } catch (err) {}
+      /* 记下按下时的那张牌：指针捕获会把 click 的 target 换成容器，
+         桌面端靠它兜底，否则左键点卡片永远进不去 */
+      lastDownCard = e.target.closest ? e.target.closest(".fcard") : null;
+      /* 注意：这里不要用 setPointerCapture —— 一捕获，浏览器会把后续的
+         click 事件改派给捕获元素（fanEl），卡片就收不到点击了。
+         拖动越界由下面的 window 监听兜住，不需要捕获。 */
     });
 
-    fanEl.addEventListener("pointermove", (e) => {
+    window.addEventListener("pointermove", (e) => {
       if (!drag || e.pointerId !== drag.id) return;
       const dx = e.clientX - drag.x0;
       const dy = e.clientY - drag.y0;
@@ -463,8 +494,6 @@
       dragX = 0;
       applyFanTransform();
 
-      try { fanEl.releasePointerCapture(d.id); } catch (err) {}
-
       if (!d.moved) return;
       tapBlockUntil = Date.now() + 260;
 
@@ -485,9 +514,8 @@
       notify();
     }
 
-    fanEl.addEventListener("pointerup", endDrag);
-    fanEl.addEventListener("pointercancel", endDrag);
-    fanEl.addEventListener("lostpointercapture", () => { if (drag) endDrag(); });
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
 
     /* 键盘 */
     fanEl.addEventListener("keydown", (e) => {
